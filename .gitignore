@@ -1,0 +1,12 @@
+.bundle
+db
+log/*.log
+tmp/
+*~
+nohoup.out
+.project
+.DS_Store
+.idea
+doc
+Gemfile.lock
+rake
