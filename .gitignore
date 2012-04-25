@@ -1,6 +1,8 @@
 .bundle
-db
-log/*.log
+db/*.sqlite3
+db/messages.log
+db/seeds.rb
+db/schema.rb
 tmp/
 *~
 nohup.out

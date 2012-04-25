@@ -4,7 +4,12 @@ require 'oa_model/oa_model'
 namespace :oa do
 
   desc "It discovers the top twitters for each topic"
-  task :top_tweeters, [:topic_id] => :environment do |t, args|
+  task :top_tweeters => :environment do
+
+    @min_allowed_tags = 3
+    @max_allowed_tags = 4
+    @sleep_time       = 3600/345
+    @target_twitters  = 30
 
     Twitter.configure do |config|
       config.consumer_key       = "pYP2rAdkY5Ztw1aipZk5bA"
@@ -13,20 +18,24 @@ namespace :oa do
       config.oauth_token_secret = "CBs1lUK1lTW2VNWNbVuEdwIXAtWnoOeje1qfY9a3E"
     end
 
-    @min_allowed_tags = 3
-    @max_allowed_tags = 4
-    @sleep_time       = 3600/345
-    @target_twitters  = 30
-
     Topic.establish_connection(:adapter => "postgresql", :host => "localhost", :username => "postgres", :password => "postgres", :database => "opinionage")
 
-    begin
+    if CrawlerInfo.count == 0
+      crawler_info = CrawlerInfo.new :analyzing_topic_id => 0
+      crawler_info.save
+    end
 
-      topic_id = args.topic_id.to_i
-      p "destroying rows belonging to the topic id: #{topic_id}"
-      ContactedUsers.destroy_all("topic_id = #{topic_id} and twitted = 'f'")
+    while true
 
-      Topic.where("id >= #{topic_id}").each do |topic|
+      crawler_info = CrawlerInfo.first
+      start_topic_id = crawler_info.analyzing_topic_id
+
+      Topic.where("id >= #{start_topic_id}").each do |topic|
+
+        crawler_info.analyzing_topic_id = topic.id
+        crawler_info.save
+
+        p "Analysing tweets for the topic: #{topic.question_text}"
         @twitters_cache = { }
         topic_node      = Neo4j::Node.load topic.graph_id
 
@@ -35,7 +44,6 @@ namespace :oa do
         end
 
         if tags.count >= @min_allowed_tags
-
           sorted_twitters = []
           max_range_tags  = [tags.count, @max_allowed_tags].min
           (@min_allowed_tags..max_range_tags).each do |i|
@@ -65,17 +73,15 @@ namespace :oa do
               contacted_twitters += 1
 
             end
-
             break if contacted_twitters >= @target_twitters
-
           end
-
         end
-
       end
 
-    rescue Exception => e
-      puts "#{e.message}"
+      puts "restarting the loop!!!"
+      crawler_info.analyzing_topic_id = 0
+      crawler_info.save
+
     end
 
   end
@@ -83,28 +89,37 @@ namespace :oa do
   desc "It tweets the top tweeters"
   task :invite_twitters => :environment do
 
-    results = ContactedUsers.where("twitted = 'f'")
-    (0..results.count-1).to_a.shuffle.each do |index|
+    while true do
 
-      user      = results[index]
-      url       = "http://www.opinionage.com/t/#{user.topic_id}"
-      avail_len = 140 - "@#{user.twitter_name}  #{url.length}".length
+      results    = ContactedUsers.where("twitted = 'f'")
+      sleep_time = (24*3600)/[results.count, 1000].min
+      puts "sleep time between tweets: #{sleep_time}"
 
-      text       = user.topic_title[0, [avail_len, user.topic_title.length].min]
-      tweet_text = "@#{user.twitter_name} #{text} #{url}"
-      p tweet_text + " (#{tweet_text.length})"
+      (0..results.count-1).to_a.shuffle.each do |index|
 
-      user.twitted       = true
-      user.mention_tweet = tweet_text
-      user.save
+        user      = results[index]
+        url       = "http://www.opinionage.com/t/#{user.topic_id}"
+        avail_len = 140 - "@#{user.twitter_name}  #{url.length}".length
+
+        text       = user.topic_title[0, [avail_len, user.topic_title.length].min]
+        tweet_text = "@#{user.twitter_name} #{text} #{url}"
+        p tweet_text + " (#{tweet_text.length}) in_reply_to_status_id: #{user.tweet_id}"
+
+        Twitter.update tweet_text, :in_reply_to_status_id => user.tweet_id
+
+        user.twitted       = true
+        user.mention_tweet = tweet_text
+        user.save
+
+        sleep sleep_time
+
+      end
+
+      puts "taking a day off... :-)"
+      sleep 3600*24
 
     end
 
-  end
-
-  def ask message
-    print message +":"
-    STDIN.gets.chomp
   end
 
   def slow_twitter_api
@@ -124,11 +139,6 @@ namespace :oa do
                 :tweet_id      => tweet.id,
                 :search_string => search_string }
     end
-  end
-
-  def tweet tweet_text
-    slow_twitter_api
-#    Twitter.update( tweet_text )
   end
 
   def user_info display_name
