@@ -15,8 +15,8 @@ namespace :oa do
 
     @min_allowed_tags = 3
     @max_allowed_tags = 4
-    @sleep_time       = 3600/600
-    @target_twitters  = 15
+    @sleep_time       = 3600/345
+    @target_twitters  = 30
 
     Topic.establish_connection(:adapter => "postgresql", :host => "localhost", :username => "postgres", :password => "postgres", :database => "opinionage")
 
