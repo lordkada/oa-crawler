@@ -14,8 +14,8 @@ namespace :oa do
     Twitter.configure do |config|
       config.consumer_key       = "pYP2rAdkY5Ztw1aipZk5bA"
       config.consumer_secret    = "SwInlV5Lr2cjsoLmvKZnEz2yzAqlMf1iPhgVePVHM"
-      config.oauth_token        = "16823784-JE4THd1pFHB2M2D3kL9ekr5WBLyk6dGkJ2lA2g54"
-      config.oauth_token_secret = "CBs1lUK1lTW2VNWNbVuEdwIXAtWnoOeje1qfY9a3E"
+      config.oauth_token        = "381694851-mxKyqEa61ocqTJhp2gvqDAM3ABUcDHi24U4Jnowz"
+      config.oauth_token_secret = "qPzhDGjIXagVFRq4U57wLUntXo0RcuL2mSOmTn7UyE"
     end
 
     Topic.establish_connection(:adapter => "postgresql", :host => "localhost", :username => "postgres", :password => "postgres", :database => "opinionage")
