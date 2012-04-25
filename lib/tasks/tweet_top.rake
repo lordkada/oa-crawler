@@ -4,7 +4,7 @@ require 'oa_model/oa_model'
 namespace :oa do
 
   desc "It discovers the top twitters for each topic"
-  task :top_tweeters => :environment do
+  task :top_tweeters, [:topic_id] => :environment do |t, args|
 
     Twitter.configure do |config|
       config.consumer_key       = "pYP2rAdkY5Ztw1aipZk5bA"
@@ -22,14 +22,10 @@ namespace :oa do
 
     begin
 
-      topic_id = ask("start from topic id? (not twitted users will be deleted!")
+      topic_id = args.topic_id.to_i
+      p "destroying rows belonging to the topic id: #{topic_id}"
+      ContactedUsers.destroy_all("topic_id = #{topic_id} and twitted = 'f'")
 
-      if !topic_id.empty?
-        p "destroying rows belonging to the topic id: #{topic_id}"
-        ContactedUsers.destroy_all("topic_id = #{topic_id} and twitted = 'f'")
-      end
-
-      topic_id = 0 if topic_id.empty?
       Topic.where("id >= #{topic_id}").each do |topic|
         @twitters_cache = { }
         topic_node      = Neo4j::Node.load topic.graph_id
