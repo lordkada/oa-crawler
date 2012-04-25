@@ -3,7 +3,10 @@ db
 log/*.log
 tmp/
 *~
-nohoup.out
+nohup.out
+test
+vendor
+log
 .project
 .DS_Store
 .idea
