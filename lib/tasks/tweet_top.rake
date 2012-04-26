@@ -1,6 +1,15 @@
 require File.expand_path("../../../config/environment", __FILE__)
 require 'oa_model/oa_model'
 
+Twitter.configure do |config|
+  config.consumer_key       = "pYP2rAdkY5Ztw1aipZk5bA"
+  config.consumer_secret    = "SwInlV5Lr2cjsoLmvKZnEz2yzAqlMf1iPhgVePVHM"
+  config.oauth_token        = "381694851-mxKyqEa61ocqTJhp2gvqDAM3ABUcDHi24U4Jnowz"
+  config.oauth_token_secret = "qPzhDGjIXagVFRq4U57wLUntXo0RcuL2mSOmTn7UyE"
+end
+
+Topic.establish_connection(:adapter => "postgresql", :host => "localhost", :username => "postgres", :password => "postgres", :database => "opinionage")
+
 namespace :oa do
 
   desc "It discovers the top twitters for each topic"
@@ -10,15 +19,6 @@ namespace :oa do
     @max_allowed_tags = 4
     @sleep_time       = 3600/345
     @target_twitters  = 30
-
-    Twitter.configure do |config|
-      config.consumer_key       = "pYP2rAdkY5Ztw1aipZk5bA"
-      config.consumer_secret    = "SwInlV5Lr2cjsoLmvKZnEz2yzAqlMf1iPhgVePVHM"
-      config.oauth_token        = "381694851-mxKyqEa61ocqTJhp2gvqDAM3ABUcDHi24U4Jnowz"
-      config.oauth_token_secret = "qPzhDGjIXagVFRq4U57wLUntXo0RcuL2mSOmTn7UyE"
-    end
-
-    Topic.establish_connection(:adapter => "postgresql", :host => "localhost", :username => "postgres", :password => "postgres", :database => "opinionage")
 
     if CrawlerInfo.count == 0
       crawler_info = CrawlerInfo.new :analyzing_topic_id => 0
