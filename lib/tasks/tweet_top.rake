@@ -27,7 +27,7 @@ namespace :oa do
 
     while true
 
-      crawler_info = CrawlerInfo.first
+      crawler_info   = CrawlerInfo.first
       start_topic_id = crawler_info.analyzing_topic_id
 
       Topic.where("id >= #{start_topic_id}").each do |topic|
@@ -92,12 +92,14 @@ namespace :oa do
     while true do
 
       results    = ContactedUsers.where("twitted = 'f'")
-      sleep_time = (24*3600)/[results.count, 1000].min
-      puts "sleep time between tweets: #{sleep_time}"
 
-      (0..results.count-1).to_a.shuffle.each do |index|
+      if results.count > 0
 
-        user      = results[index]
+        rand_delta = rand(600)
+        sleep_time = (24*3600)/800 + ( rand_delta > 0.5 ? rand_delta : -rand_delta )
+        puts "sleep time between tweets: #{sleep_time}"
+
+        user      = results[rand(results.count)]
         url       = "http://www.opinionage.com/t/#{user.topic_id}"
         avail_len = 140 - "@#{user.twitter_name}  #{url.length}".length
 
@@ -105,6 +107,7 @@ namespace :oa do
         tweet_text = "@#{user.twitter_name} #{text} #{url}"
         p tweet_text + " (#{tweet_text.length}) in_reply_to_status_id: #{user.tweet_id}"
 
+        Twitter.follow user.twitter_name
         Twitter.update tweet_text, :in_reply_to_status_id => user.tweet_id
 
         user.twitted       = true
@@ -113,10 +116,12 @@ namespace :oa do
 
         sleep sleep_time
 
-      end
+      else
 
-      puts "taking a day off... :-)"
-      sleep 3600*24
+        puts "taking a day off... :-)"
+        sleep 3600*24
+
+      end
 
     end
 
