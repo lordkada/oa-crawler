@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8' />
+    <meta http-equiv="X-UA-Compatible" content="chrome=1" />
+    <meta name="description" content="Oa-crawler : oa-crawler" />
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>Oa-crawler</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/lordkada/oa-crawler">View on GitHub</a>
+
+          <h1 id="project_title">Oa-crawler</h1>
+          <h2 id="project_tagline">oa-crawler</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/lordkada/oa-crawler/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/lordkada/oa-crawler/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <p><a href="https://dl.dropboxusercontent.com/u/15982375/hacking-twitter-and-be-suspended-in-less-than.html" title="Permalink to opinionage, voices from the crew">Permalink</a></p>
+
+<h1>
+<a name="opinionage-voices-from-the-crew" class="anchor" href="#opinionage-voices-from-the-crew"><span class="octicon octicon-link"></span></a>opinionage, voices from the crew</h1>
+
+<p>Hey guys,</p>
+
+<p>a few weeks ago I was struggling to boost traction to our website when I had a lunch in a shiny day in San Francisco with my friend Federico (Feroldi). He unconsciously was the trigger in this story ;-).</p>
+
+<p>While Federico’s words where still echoing in my head (“I’m too lazy, so I let my computer work... not me!”) I was puzzling over a simple question:** “how can I discover and engage Twitter users to Opinionage contents with a simple program?” **</p>
+
+<p>Furthermore I was keeping at the same time an eye on the Twitter rules to figure out what is allowed and what is not (get a walk around their “spam and abuse section” if you didn’t, it provides a lot of unclear and ambiguous definitions... don’t you agree with me?) </p>
+
+<p><strong>So, it was clear enough that if I wanted to build such an “automaton”, it should be animated by an algorithm accurate as a sniper</strong>: finding relevant tweets and  engaging people with personal messages, but at the same time avoiding any spamming behavior and consuming Twitter’s API at the maximum allowed (low) rate. Furthermore I should assure that each personal message must be written in an understandable language by target people (what about writing in english to somebody who speaks Chinese only?)... Cool enough?!? I think so...</p>
+
+<p><strong>The first big challenge was about translating Opinionage topics into meaningful keywords to be used as query text to the Twitter’s search API</strong>. </p>
+
+<p>If you don’t know what an Opinionage topic is, let’s imagine a big question/issue about something you really care about that you want to publicly debate; the scheme  is the “round table” where the most shared opinion or proposal “socially emerge” (do you recall the legendary King Arthur’s round table? The idea was to place the theme at the center of the discussion, not the people. We’re doing the same thing, but virtually!).</p>
+
+<p>In brief a topic means a lot of text!!! So if you need to extract some meaningful keywords to build your query then... good luck!!! At least you have to rely on some sophisticated semantic API or engines. But they definitely weren’t my solution, not just for a simple hack!</p>
+
+<p>The solution brilliant but obvious was just there under my eyes: instead of using these huge texts, I just needed the topic tags: simple keywords used by authors to label the topic. They define both the content (semantic) and the language! </p>
+
+<p>Our tags are stored in our graph db (neo4j), so I just needed to follow the right relationship:</p>
+
+<blockquote>
+<p>tags = topic_node.outgoing(:tag).inject([]) do |memo, tag_node|</p>
+
+<p>memo 
+end</p>
+</blockquote>
+
+<p>Then as a general strategy I decided to use the maximum number of available tags to find relevant tweets, setting a lower limit of 3 (=@min_allowed_tags). This gave me a good confidence on the result quality.</p>
+
+<blockquote>
+<p>if tags.count &gt;= @min_allowed_tags</p>
+
+<p>sorted_twitters = []</p>
+
+<p>max_range_tags  = [tags.count, @max_allowed_tags].min</p>
+
+<p>(@min_allowed_tags..max_range_tags).each do |i|</p>
+
+<pre><code>  tags.combination(max_range_tags-(i-@min_allowed_tags)).each do |tag_combination|
+
+     search_twitters(tag_combination.to_a.join(" ")).each do |twitter|
+
+        sorted_twitters = build_sorted_hash_array sorted_twitters, twitter, :followers
+
+     end
+
+  end
+
+end
+</code></pre>
+
+<p>end</p>
+</blockquote>
+
+<p>To save results and assure that I will contact each Twitterer only once, I used a support table (ContactedUsers)</p>
+
+<blockquote>
+<p>contacted_twitters = 0</p>
+
+<p>sorted_twitters.each do |twitter|</p>
+
+<p>if ContactedUsers.find_by_twitter_name(twitter[:display_name]).nil?</p>
+
+<p>contacted_user = ContactedUsers.new :twitter_id   =&gt; twitter[:twitter_id],</p>
+
+<pre><code>                                   :twitter_name =&gt; twitter[:display_name],
+
+                                   :followers    =&gt; twitter[:followers],
+
+                                   :search_key   =&gt; twitter[:search_string],
+
+                                   :tweet        =&gt; twitter[:tweet],
+
+                                   :tweet_id     =&gt; twitter[:tweet_id],
+
+                                   :topic_id     =&gt; topic.id,
+
+                                   :topic_title  =&gt; topic.question_text,
+
+                                   :twitted      =&gt; false
+</code></pre>
+
+<p>contacted_user.save!</p>
+
+<p>contacted_twitters += 1</p>
+
+<p>end</p>
+</blockquote>
+
+<p>Before going on, let me say that I decided to use a producer-consumer pattern: the former was the analyzer as stated above, the latter was the “twitterer engager”. In this configuration, the ContactedUsers table was the “stack” between the two. This scheme allowed me to pause the procedure and start again without loosing any data (it happened many times at the beginning before I slowed the Twitter API call...)</p>
+
+<p>The twitterer engager’s job (the consumer) was about sending a “personal message” to selected people. I decided to use the topic question/claim text and gently truncate it to keep tweets under 140 characters.</p>
+
+<p>To be more effective I also decided to follow the user first, then to reply his tweet (the tweet I discovered in the analysis process) with the “personal message”!</p>
+
+<blockquote>
+<p>user      = results[rand(results.count)]</p>
+
+<p>url       = "<a href="http://livepage.apple.com/">http://www.opinionage.com/t/#{user.topic_id}</a>"</p>
+
+<p>avail_len = 140 - "@#{user.twitter_name}  #{url}".length</p>
+
+<p>text       = (user.topic_title.length &gt; avail_len) ? user.topic_title[0, avail_len-3]+"..." : user.topic_title</p>
+
+<p>tweet_text = "@#{user.twitter_name} #{text} #{url}"</p>
+
+<p>Twitter.follow user.twitter_name</p>
+
+<p>Twitter.update tweet_text, :in_reply_to_status_id =&gt; user.tweet_id</p>
+
+<p>user.twitted       = true</p>
+
+<p>user.mention_tweet = tweet_text</p>
+
+<p>user.save</p>
+</blockquote>
+
+<p><strong>In few hours I wrote less than 200 of Ruby LOCs that worked like a charm...</strong>Let me show you some tweets to appreciate the quality of mentions and contents:</p>
+
+<p>1) about the Facebook’s IPO</p>
+
+<p>@drrichjlaw said: <strong>More signs of social media bubble bursting: Facebook reveals revenue &amp; profit slide. Haven't even IPO'd yet!</strong></p>
+
+<p>automaton's reply: <strong>@drrichjlaw Do you think Facebook IPO will boost the next internet bubble?</strong></p>
+
+<p>2) about the Euro’s crisis</p>
+
+<p>@RicHolden said: <strong>IMF recently upgraded UK growth forecast for 2012 full year &amp; predict UK will grow faster than either France or Germany...</strong></p>
+
+<p>automaton's reply: <strong><a href="https://github.com/BrandonLewis" class="user-mention">@BrandonLewis</a> Can Europe be saved?</strong></p>
+
+<p>3) about Italian government (Italian language)</p>
+
+<p>@folksonomia said: <strong>Monti acquista altre 400 Auto Blu per un valore di 10 milioni di euro. Noi i sacrifici...</strong></p>
+
+<p>automaton's reply: <strong>@folksonomia La manovra finanziaria salverà l'Italia dal default?</strong></p>
+
+<p>In just 2 days the program has analyzed thousand of profiles and tweeted about 300 times:</p>
+
+<ul>
+<li><strong>~30% of engaged users replied on Twitter</strong></li>
+<li><strong>~5% became active users on Opinionage</strong></li>
+<li><strong>0 people mentioned Opinionage as spam</strong></li>
+</ul><p><strong>Despite a little bit slow (due to the Twitter API’s rate limit) it was infallible: a real sniper!!!</strong></p>
+
+<p>I was so satisfied and excited about it until... at the end of the second day, Twitter suspended the account with a laconic "too many mentions" :-(</p>
+
+<p>Of course, I've written to the support team to learn more, because I haven't still really realized what rule I exactly infringed... but I've got no answer yet!</p>
+
+<p><strong>So, the lessons learned?</strong></p>
+
+<ul>
+<li>Sometimes the most impressive results come from tremendously easy things</li>
+<li>There's a subtle difference between "spamming" and "advertising"</li>
+<li>Twitter is a real gold mine!</li>
+</ul><p><a href="https://github.com/lordkada" class="user-mention">@lordkada</a></p>
+
+<p>PS if you are curious about the full code, pls contact me ;-)</p>
+
+<p>PS2 the account was reinstated ;-)</p>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">Oa-crawler maintained by <a href="https://github.com/lordkada">lordkada</a></p>
+        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
+  </body>
+</html>
